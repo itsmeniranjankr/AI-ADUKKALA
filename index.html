@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Adukkala - Kerala Recipe Generator</title>
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Google Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #fefce8; /* Yellow 50 */
+        }
+        .action-button {
+            background: linear-gradient(45deg, #f97316, #fbbf24); /* Orange to Amber */
+            transition: all 0.3s ease;
+        }
+        .action-button:hover:not(:disabled) {
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+            transform: translateY(-2px);
+        }
+        .action-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .form-textarea {
+            background-color: #ffffff;
+            border-color: #d1d5db;
+        }
+        .form-textarea:focus {
+            --tw-ring-color: #f59e0b; /* Amber 500 */
+            border-color: #f59e0b;
+        }
+        .recipe-card ul, .recipe-card ol {
+            padding-left: 1.5rem;
+        }
+        .recipe-card li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        
+        <!-- Main Application Container -->
+        <div class="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+            
+            <!-- Header -->
+            <header class="p-6 border-b border-gray-200 bg-gray-50 text-center">
+                <div class="flex items-center justify-center space-x-3">
+                    <i class="fa-solid fa-utensils text-amber-600 text-3xl"></i>
+                    <h1 class="text-3xl font-bold tracking-tight text-gray-900">AI Adukkala</h1>
+                </div>
+                <p class="text-gray-500 mt-2">Enter your ingredients and get a unique Kerala recipe!</p>
+            </header>
+
+            <!-- Main Content -->
+            <main class="p-6 space-y-6">
+
+                <!-- 1. Input Form Section -->
+                <section id="input-section">
+                    <div class="form-group">
+                        <label for="ingredients-input" class="block mb-2 text-sm font-medium text-gray-700">What ingredients do you have?</label>
+                        <textarea id="ingredients-input" rows="4" class="form-textarea w-full rounded-lg p-3" placeholder="e.g., coconut milk, rice, tomatoes, onions, chicken..." required></textarea>
+                    </div>
+                    <button id="generate-btn" class="action-button w-full text-white font-bold py-3 px-6 rounded-lg shadow-lg">
+                        <i class="fa-solid fa-hat-chef mr-2"></i>
+                        Generate Recipe
+                    </button>
+                </section>
+                
+                <!-- 2. Results Section -->
+                <section id="results-section" class="hidden">
+                    <div id="loading-spinner" class="text-center p-8 hidden">
+                        <i class="fa-solid fa-spinner fa-spin text-4xl text-amber-500"></i>
+                        <p class="mt-2 text-gray-500">The chef is thinking...</p>
+                    </div>
+                    
+                    <div id="recipe-card" class="recipe-card hidden">
+                        <h2 id="recipe-name" class="text-2xl font-bold text-amber-700 mb-4"></h2>
+                        
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold mb-2 border-b pb-1">Ingredients</h3>
+                            <ul id="recipe-ingredients" class="list-disc text-gray-600"></ul>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2 border-b pb-1">Instructions</h3>
+                            <ol id="recipe-instructions" class="list-decimal text-gray-600"></ol>
+                        </div>
+                    </div>
+                </section>
+                
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- CONFIGURATION ---
+            const GEMINI_API_KEY = "AIzaSyDyY3X1_10WfL7VlHFS85Jn2_H-vVm0hag";
+
+            // --- DOM ELEMENTS ---
+            const generateBtn = document.getElementById('generate-btn');
+            const ingredientsInput = document.getElementById('ingredients-input');
+            const resultsSection = document.getElementById('results-section');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const recipeCard = document.getElementById('recipe-card');
+            const recipeName = document.getElementById('recipe-name');
+            const recipeIngredients = document.getElementById('recipe-ingredients');
+            const recipeInstructions = document.getElementById('recipe-instructions');
+
+            // --- EVENT LISTENER ---
+            generateBtn.addEventListener('click', generateRecipe);
+
+            // --- MAIN FUNCTION ---
+            async function generateRecipe() {
+                const ingredients = ingredientsInput.value.trim();
+
+                if (!ingredients) {
+                    alert("Please enter at least one ingredient.");
+                    return;
+                }
+
+                // --- UI STATE: START LOADING ---
+                resultsSection.classList.remove('hidden');
+                loadingSpinner.classList.remove('hidden');
+                recipeCard.classList.add('hidden');
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating...`;
+
+                try {
+                    // --- CONSTRUCT THE AI PROMPT ---
+                    const prompt = `
+                        You are an expert Master Chef specializing in authentic Kerala cuisine.
+                        A user has the following ingredients available: "${ingredients}".
+
+                        Your task is to create a simple, delicious, and authentic-style Kerala recipe using mainly these ingredients. You can assume they have basic pantry staples like oil, salt, and common spices.
+
+                        You MUST respond with ONLY a valid JSON object with the following three properties:
+                        1. "recipeName": A string with a creative and authentic-sounding name for the dish.
+                        2. "ingredients": An array of strings, with each string being one ingredient and its quantity (e.g., "1 cup Coconut Milk").
+                        3. "instructions": An array of strings, with each string being one step in the cooking process.
+
+                        Do not include any text before or after the JSON object.
+                    `;
+
+                    // --- CALL THE GEMINI API ---
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+                    const payload = { 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    };
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API request failed with status ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const jsonResponseText = result.candidates[0].content.parts[0].text;
+                    const recipe = JSON.parse(jsonResponseText);
+
+                    // --- UPDATE THE UI ---
+                    displayRecipe(recipe);
+
+                } catch (error) {
+                    console.error("Error generating recipe:", error);
+                    recipeCard.innerHTML = `<p class="text-red-600 text-center">Sorry, an error occurred. The chef might be busy! Please try again.<br><br>Details: ${error.message}</p>`;
+                    recipeCard.classList.remove('hidden');
+                } finally {
+                    // --- UI STATE: END LOADING ---
+                    loadingSpinner.classList.add('hidden');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = `<i class="fa-solid fa-hat-chef mr-2"></i>Generate Recipe`;
+                }
+            }
+
+            function displayRecipe(recipe) {
+                if (!recipe || !recipe.recipeName || !recipe.ingredients || !recipe.instructions) {
+                    recipeCard.innerHTML = `<p class="text-red-600 text-center">The AI returned an invalid recipe format. Please try again.</p>`;
+                    recipeCard.classList.remove('hidden');
+                    return;
+                }
+                
+                // Clear previous content
+                recipeIngredients.innerHTML = '';
+                recipeInstructions.innerHTML = '';
+
+                // Populate new content
+                recipeName.textContent = recipe.recipeName;
+                
+                recipe.ingredients.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    recipeIngredients.appendChild(li);
+                });
+
+                recipe.instructions.forEach(step => {
+                    const li = document.createElement('li');
+                    li.textContent = step;
+                    recipeInstructions.appendChild(li);
+                });
+                
+                recipeCard.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
